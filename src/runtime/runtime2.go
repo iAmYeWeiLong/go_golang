@@ -425,6 +425,7 @@ type g struct {
 	param        unsafe.Pointer // passed parameter on wakeup
 	atomicstatus uint32
 	stackLock    uint32 // sigprof/scang lock; TODO: fold in to atomicstatus
+	// ywl: 唯一的 goroutine 的 ID
 	goid         int64
 	schedlink    guintptr
 	waitsince    int64      // approx time when the g become blocked
@@ -461,6 +462,7 @@ type g struct {
 	sigpc          uintptr
 	gopc           uintptr         // pc of go statement that created this goroutine
 	ancestors      *[]ancestorInfo // ancestor information goroutine(s) that created this goroutine (only used if debug.tracebackancestors)
+	// ywl: 任务函数
 	startpc        uintptr         // pc of goroutine function
 	racectx        uintptr
 	waiting        *sudog         // sudog structures this g is waiting on (that have a valid elem ptr); in lock order
@@ -505,20 +507,26 @@ type m struct {
 	locks         int32
 	dying         int32
 	profilehz     int32
+	// ywl: 是否自旋，自旋就表示M正在找 g 来运行
 	spinning      bool // m is out of work and is actively looking for work
+	// ywl: m 是否被阻塞
 	blocked       bool // m is blocked on a note
 	newSigstack   bool // minit on C thread called sigaltstack
 	printlock     int8
+	// ywl: m 在执行 cgo 吗
 	incgo         bool   // m is executing a cgo call
 	freeWait      uint32 // if == 0, safe to free g0 and delete m (atomic)
 	fastrand      [2]uint32
 	needextram    bool
 	traceback     uint8
+	// ywl: 当前 cgo 调用的数目
 	ncgocall      uint64      // number of cgo calls in total
+	// ywl: cgo 调用的总数
 	ncgo          int32       // number of cgo calls currently in progress
 	cgoCallersUse uint32      // if non-zero, cgoCallers in use temporarily
 	cgoCallers    *cgoCallers // cgo traceback if crashing in cgo call
 	park          note
+	// ywl: 用于链接 allm
 	alllink       *m // on allm
 	schedlink     muintptr
 	lockedg       guintptr
@@ -564,12 +572,17 @@ type m struct {
 }
 
 type p struct {
+	// ywl: id 也是 allp 的数组下标
 	id          int32
 	status      uint32 // one of pidle/prunning/...
+	// ywl: 单向链表，指向下一个 P 的地址
 	link        puintptr
+	// ywl: 每调度一次加 1
 	schedtick   uint32     // incremented on every scheduler call
+	// ywl: 每一次系统调用加 1
 	syscalltick uint32     // incremented on every system call
 	sysmontick  sysmontick // last tick observed by sysmon
+	// ywl: 回链到关联的 m
 	m           muintptr   // back-link to associated m (nil if idle)
 	mcache      *mcache
 	pcache      pageCache
@@ -583,6 +596,7 @@ type p struct {
 	goidcacheend uint64
 
 	// Queue of runnable goroutines. Accessed without lock.
+	// ywl: 可运行的 goroutine 的队列
 	runqhead uint32
 	runqtail uint32
 	runq     [256]guintptr
@@ -595,6 +609,8 @@ type p struct {
 	// unit and eliminates the (potentially large) scheduling
 	// latency that otherwise arises from adding the ready'd
 	// goroutines to the end of the run queue.
+
+	// ywl: 下一个运行的 g，优先级最高
 	runnext guintptr
 
 	// Available G's (status == Gdead)
@@ -714,6 +730,7 @@ type schedt struct {
 
 	pidle      puintptr // idle p's
 	npidle     uint32
+	// ywl: 表示 runtime 中一共有多少个 M 在自旋状态
 	nmspinning uint32 // See "Worker thread parking/unparking" comment in proc.go.
 
 	// Global runnable queue.

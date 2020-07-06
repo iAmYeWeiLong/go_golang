@@ -84,6 +84,7 @@ GLOBL _rt0_amd64_lib_argc<>(SB),NOPTR, $8
 DATA _rt0_amd64_lib_argv<>(SB)/8, $0
 GLOBL _rt0_amd64_lib_argv<>(SB),NOPTR, $8
 
+// ywl: 真正的程序入口
 TEXT runtime·rt0_go(SB),NOSPLIT,$0
 	// copy arguments forward on an even stack
 	MOVQ	DI, AX		// argc
@@ -197,6 +198,7 @@ ok:
 	MOVQ	CX, g(BX)
 	LEAQ	runtime·m0(SB), AX
 
+	// ywl: m0 和 g0 互相绑定
 	// save m->g0 = g0
 	MOVQ	CX, m_g0(AX)
 	// save m0 to g0->m
@@ -211,6 +213,7 @@ ok:
 	MOVQ	AX, 8(SP)
 	CALL	runtime·args(SB)
 	CALL	runtime·osinit(SB)
+	// ywl: 调度系统初始化, 在 proc.go
 	CALL	runtime·schedinit(SB)
 
 	// create a new goroutine to start program
