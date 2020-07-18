@@ -590,10 +590,12 @@ func schedinit() {
 	gcinit()
 
 	sched.lastpoll = uint64(nanotime())
+	// ywl: P 的个数默认等于 cpu 个数，可以通过 GOMAXPROCS 环境变量更改
 	procs := ncpu
 	if n, ok := atoi32(gogetenv("GOMAXPROCS")); ok && n > 0 {
 		procs = n
 	}
+	// ywl: 新分配 procs 个 P; 所有的 P 都是从这里分配的，以后也不用担心没有 P 了
 	if procresize(procs) != nil {
 		throw("unknown runnable goroutine during bootstrap")
 	}

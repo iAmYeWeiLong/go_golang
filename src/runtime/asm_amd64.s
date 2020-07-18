@@ -193,6 +193,7 @@ needtls:
 	CALL	runtime·abort(SB)
 ok:
 	// set the per-goroutine and per-mach "registers"
+	// ywl: 初始化包变量 g0 和 m0
 	get_tls(BX)
 	LEAQ	runtime·g0(SB), CX
 	MOVQ	CX, g(BX)
@@ -212,6 +213,7 @@ ok:
 	MOVQ	24(SP), AX		// copy argv
 	MOVQ	AX, 8(SP)
 	CALL	runtime·args(SB)
+	// ywl: os 初始化， os_linux.go
 	CALL	runtime·osinit(SB)
 	// ywl: 调度系统初始化, 在 proc.go
 	CALL	runtime·schedinit(SB)

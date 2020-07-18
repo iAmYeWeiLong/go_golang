@@ -4,6 +4,7 @@
 
 package sync
 
+// ywl: 参考 https://github.com/RainbowMango/GoComments/blob/master/go-go1.11/src/sync/rwmutex.go
 import (
 	"internal/race"
 	"sync/atomic"
@@ -45,6 +46,7 @@ func (rw *RWMutex) RLock() {
 		_ = rw.w.state
 		race.Disable()
 	}
+	// ywl: 负值表示正在写中
 	if atomic.AddInt32(&rw.readerCount, 1) < 0 {
 		// A writer is pending, wait for it.
 		runtime_SemacquireMutex(&rw.readerSem, false, 0)
@@ -65,6 +67,7 @@ func (rw *RWMutex) RUnlock() {
 		race.ReleaseMerge(unsafe.Pointer(&rw.writerSem))
 		race.Disable()
 	}
+	// ywl: 每个读者解锁时，首先将 readerCount -1，如果 readerCount 为负值，说明有协程在等待写锁
 	if r := atomic.AddInt32(&rw.readerCount, -1); r < 0 {
 		// Outlined slow-path to allow the fast-path to be inlined
 		rw.rUnlockSlow(r)
@@ -80,6 +83,7 @@ func (rw *RWMutex) rUnlockSlow(r int32) {
 		throw("sync: RUnlock of unlocked RWMutex")
 	}
 	// A writer is pending.
+	// ywl: 将 readerWait - 1, 并且最后一个读者负责释放一个信号量，来唤醒等待写锁的协程
 	if atomic.AddInt32(&rw.readerWait, -1) == 0 {
 		// The last reader unblocks the writer.
 		runtime_Semrelease(&rw.writerSem, false, 1)
@@ -97,9 +101,14 @@ func (rw *RWMutex) Lock() {
 	// First, resolve competition with other writers.
 	rw.w.Lock()
 	// Announce to readers there is a pending writer.
+	// ywl: 写操作将 readerCount 变成负值表示正在写，以阻止读操作
+	// ywl: 然后再加上 rwmutexMaxReaders 又可以获取原来的读者数。非常精妙
 	r := atomic.AddInt32(&rw.readerCount, -rwmutexMaxReaders) + rwmutexMaxReaders
 	// Wait for active readers.
+
+	// ywl: 此处将读者数写入 readerWait 实际上是用于排队，即当前为止的读者释放后轮到写操作，避免写锁被饿死
 	if r != 0 && atomic.AddInt32(&rw.readerWait, r) != 0 {
+		// ywl: 阻塞等待所有读操作结束
 		runtime_SemacquireMutex(&rw.writerSem, false, 0)
 	}
 	if race.Enabled {
@@ -129,6 +138,7 @@ func (rw *RWMutex) Unlock() {
 		throw("sync: Unlock of unlocked RWMutex")
 	}
 	// Unblock blocked readers, if any.
+	// ywl: 写操作结束后唤醒后面的读操作
 	for i := 0; i < int(r); i++ {
 		runtime_Semrelease(&rw.readerSem, false, 0)
 	}
